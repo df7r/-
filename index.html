@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لعبة رمي محيز</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0f172a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: white;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 520px;
+            background: linear-gradient(to bottom, #1e293b 0%, #334155 70%, #475569 100%);
+            border: 4px solid #38bdf8;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+            cursor: crosshair;
+        }
+        /* واجهة النتيجة والوقت */
+        .hud {
+            position: absolute;
+            top: 15px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 22px;
+            font-weight: bold;
+            z-index: 10;
+            background: rgba(15, 23, 42, 0.6);
+            padding: 10px 20px;
+            border-radius: 12px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .stat-box {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .highlight {
+            color: #f59e0b;
+            font-size: 26px;
+        }
+
+        /* المنصة السفلية */
+        #podium {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 360px;
+            height: 150px;
+            background: linear-gradient(180deg, #78350f 0%, #451a03 100%);
+            border-top: 10px solid #92400e;
+            border-radius: 12px 12px 0 0;
+            z-index: 5;
+            box-shadow: 0 -8px 25px rgba(0,0,0,0.5);
+        }
+        #podium::after {
+            content: "مؤتمر محيز";
+            position: absolute;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #d97706;
+            font-size: 18px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            border: 2px solid #d97706;
+            padding: 4px 15px;
+            border-radius: 6px;
+            background: rgba(0,0,0,0.2);
+        }
+
+        /* الهدف (صورة الخوي) */
+        #target-container {
+            position: absolute;
+            bottom: -200px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150px;
+            height: 180px;
+            transition: bottom 0.12s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 3;
+        }
+        #target-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            filter: drop-shadow(0 5px 10px rgba(0,0,0,0.4));
+        }
+
+        /* المقذوف المتحرك */
+        .projectile {
+            position: absolute;
+            width: 55px;
+            height: 55px;
+            z-index: 8;
+            pointer-events: none;
+            transition: transform 0.18s linear, left 0.18s linear, top 0.18s linear, opacity 0.18s;
+            font-size: 45px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* تأثير الضربة */
+        .hit-effect {
+            position: absolute;
+            font-size: 32px;
+            font-weight: 900;
+            color: #facc15;
+            text-shadow: 0 0 10px #ef4444, 2px 2px 0 #000;
+            z-index: 9;
+            pointer-events: none;
+            animation: popUp 0.4s ease-out forwards;
+        }
+        @keyframes popUp {
+            0% { transform: scale(0.3) rotate(-10deg); opacity: 1; }
+            50% { transform: scale(1.4) rotate(10deg); }
+            100% { transform: scale(1) rotate(0deg); opacity: 0; }
+        }
+
+        /* الشاشات التفاعلية */
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.92);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            text-align: center;
+            padding: 20px;
+            backdrop-filter: blur(8px);
+        }
+        .overlay h1 {
+            font-size: 36px;
+            margin-bottom: 10px;
+            color: #38bdf8;
+            text-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+        }
+        .overlay p {
+            font-size: 16px;
+            color: #94a3b8;
+            max-width: 500px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .upload-section {
+            background: rgba(30, 41, 59, 0.8);
+            border: 2px dashed #38bdf8;
+            padding: 15px 25px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            width: 80%;
+            max-width: 450px;
+        }
+        .upload-lbl {
+            background: #0284c7;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            display: inline-block;
+            transition: 0.2s;
+        }
+        .upload-lbl:hover { background: #0369a1; transform: scale(1.03); }
+        input[type="file"] { display: none; }
+
+        .weapon-select {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .weapon-btn {
+            background: #1e293b;
+            border: 2px solid #475569;
+            font-size: 28px;
+            padding: 8px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .weapon-btn.active {
+            border-color: #f59e0b;
+            background: rgba(245, 158, 11, 0.2);
+            transform: scale(1.1);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            border: none;
+            padding: 14px 40px;
+            font-size: 22px;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(245, 158, 11, 0.4);
+            transition: 0.2s;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 20px rgba(245, 158, 11, 0.6);
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <!-- الشريط العلوي -->
+    <div class="hud">
+        <div class="stat-box">النقاط: <span id="score" class="highlight">0</span></div>
+        <div class="stat-box">أعلى نتيجة: <span id="high-score" class="highlight">0</span></div>
+        <div class="stat-box">الوقت: <span id="timer" class="highlight">30</span>s</div>
+    </div>
+
+    <!-- الهدف والمنصة -->
+    <div id="target-container">
+        <img id="target-img" src="https://api.iconify.design/noto:man-raising-hand.svg" alt="Target">
+    </div>
+    <div id="podium"></div>
+
+    <!-- شاشة البداية والإعدادات -->
+    <div id="start-screen" class="overlay">
+        <h1>لعبة رمي محيز 🎯</h1>
+        <p>قم برفع صورة صديقك، اختر السلاح المناسب، واضربه قبل أن يختبئ!</p>
+        
+        <div class="upload-section">
+            <label class="upload-lbl">
+                📁 اختر صورة صديقك (اختر وجه واضح)
+                <input type="file" id="upload-friend" accept="image/*">
+            </label>
+            <div id="file-name" style="font-size: 13px; color: #38bdf8; margin-top: 8px;">صورة افتراضية مفعلة</div>
+        </div>
+
+        <div style="margin-bottom: 8px; font-size: 14px; color: #cbd5e1;">اختر أداة الرمي:</div>
+        <div class="weapon-select">
+            <button class="weapon-btn active" onclick="selectWeapon('👞', this)">👞</button>
+            <button class="weapon-btn" onclick="selectWeapon('👟', this)">👟</button>
+            <button class="weapon-btn" onclick="selectWeapon('🩴', this)">🩴</button>
+            <button class="weapon-btn" onclick="selectWeapon('💧', this)">💧</button>
+            <button class="weapon-btn" onclick="selectWeapon('🍅', this)">🍅</button>
+        </div>
+
+        <button class="btn" onclick="startGame()">ابدأ اللعب 🚀</button>
+    </div>
+
+    <!-- شاشة النهاية -->
+    <div id="end-screen" class="overlay" style="display: none;">
+        <h1>انتهى الوقت! ⏱️</h1>
+        <p style="font-size: 24px; color: white;">مجموع الضربات الناجحة: <span id="final-score" class="highlight">0</span></p>
+        <p id="evaluation-text" style="color: #38bdf8; font-weight: bold;"></p>
+        <button class="btn" onclick="resetGame()">العب مرة أخرى 🔄</button>
+    </div>
+</div>
+
+<script>
+    // إنشاء المؤثرات الصوتية باستخدام Web Audio API
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx;
+
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new AudioContext();
+        }
+    }
+
+    // صوت الرمي (Whoosh)
+    function playWhooshSound() {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.15);
+        
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+        
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.15);
+    }
+
+    // صوت الإصابة (Hit / Slap)
+    function playHitSound() {
+        if (!audioCtx) return;
+        
+        const bufferSize = audioCtx.sampleRate * 0.1;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(1000, audioCtx.currentTime);
+        filter.frequency.linearRampToValueAtTime(100, audioCtx.currentTime + 0.1);
+
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(0.8, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        noise.start();
+
+        const osc = audioCtx.createOscillator();
+        const oscGain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.15);
+        
+        oscGain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+
+        osc.connect(oscGain);
+        oscGain.connect(audioCtx.destination);
+
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.15);
+    }
+
+    // عناصر الصفحة
+    const targetContainer = document.getElementById('target-container');
+    const targetImg = document.getElementById('target-img');
+    const scoreEl = document.getElementById('score');
+    const highScoreEl = document.getElementById('high-score');
+    const timerEl = document.getElementById('timer');
+    const startScreen = document.getElementById('start-screen');
+    const endScreen = document.getElementById('end-screen');
+    const gameContainer = document.getElementById('game-container');
+    const uploadInput = document.getElementById('upload-friend');
+
+    let score = 0;
+    let highScore = localStorage.getItem('mohaiz_game_high_score') || 0;
+    highScoreEl.innerText = highScore;
+
+    let timeLeft = 30;
+    let gameInterval;
+    let targetTimeout;
+    let isTargetUp = false;
+    let isPlaying = false;
+    let selectedWeapon = '👞';
+
+    function selectWeapon(symbol, btn) {
+        selectedWeapon = symbol;
+        document.querySelectorAll('.weapon-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+    }
+
+    uploadInput.addEventListener('change', function(e) {
+        if (e.target.files && e.target.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                targetImg.src = e.target.result;
+            }
+            reader.readAsDataURL(e.target.files[0]);
+            document.getElementById('file-name').innerText = "تم رفع صورة صديقك بنجاح! 📸";
+        }
+    });
+
+    function startGame() {
+        initAudio();
+        startScreen.style.display = 'none';
+        endScreen.style.display = 'none';
+        score = 0;
+        timeLeft = 30;
+        scoreEl.innerText = score;
+        timerEl.innerText = timeLeft;
+        isPlaying = true;
+
+        gameInterval = setInterval(() => {
+            timeLeft--;
+            timerEl.innerText = timeLeft;
+            if (timeLeft <= 0) endGame();
+        }, 1000);
+
+        moveTargetLoop();
+    }
+
+    function moveTargetLoop() {
+        if (!isPlaying) return;
+
+        const randomX = Math.floor(Math.random() * 520) + 140;
+        targetContainer.style.left = randomX + 'px';
+
+        targetContainer.style.bottom = '130px';
+        isTargetUp = true;
+
+        const showDuration = Math.max(380, 1100 - (30 - timeLeft) * 22);
+
+        targetTimeout = setTimeout(() => {
+            targetContainer.style.bottom = '-200px';
+            isTargetUp = false;
+
+            const hideDuration = Math.random() * 600 + 300;
+            if (isPlaying) setTimeout(moveTargetLoop, hideDuration);
+        }, showDuration);
+    }
+
+    gameContainer.addEventListener('click', function(e) {
+        if (!isPlaying) return;
+
+        const rect = gameContainer.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const clickY = e.clientY - rect.top;
+
+        throwProjectile(clickX, clickY);
+    });
+
+    function throwProjectile(targetX, targetY) {
+        playWhooshSound();
+
+        const proj = document.createElement('div');
+        proj.className = 'projectile';
+        proj.innerText = selectedWeapon;
+        
+        const startX = 400;
+        const startY = 480;
+
+        proj.style.left = startX + 'px';
+        proj.style.top = startY + 'px';
+        gameContainer.appendChild(proj);
+
+        setTimeout(() => {
+            proj.style.left = (targetX - 25) + 'px';
+            proj.style.top = (targetY - 25) + 'px';
+            proj.style.transform = 'rotate(720deg) scale(0.7)';
+        }, 20);
+
+        setTimeout(() => {
+            checkHit(targetX, targetY);
+            proj.style.opacity = '0';
+            setTimeout(() => proj.remove(), 180);
+        }, 180);
+    }
+
+    function checkHit(x, y) {
+        if (!isTargetUp) return;
+
+        const targetRect = targetContainer.getBoundingClientRect();
+        const containerRect = gameContainer.getBoundingClientRect();
+
+        const relativeLeft = targetRect.left - containerRect.left;
+        const relativeTop = targetRect.top - containerRect.top;
+
+        if (
+            x >= relativeLeft &&
+            x <= relativeLeft + targetRect.width &&
+            y >= relativeTop &&
+            y <= relativeTop + targetRect.height
+        ) {
+            playHitSound();
+
+            score += 10;
+            scoreEl.innerText = score;
+
+            if (score > highScore) {
+                highScore = score;
+                highScoreEl.innerText = highScore;
+                localStorage.setItem('mohaiz_game_high_score', highScore);
+            }
+
+            clearTimeout(targetTimeout);
+            targetContainer.style.bottom = '-200px';
+            isTargetUp = false;
+
+            showHitEffect(x, y);
+
+            setTimeout(moveTargetLoop, 350);
+        }
+    }
+
+    function showHitEffect(x, y) {
+        const hit = document.createElement('div');
+        hit.className = 'hit-effect';
+        hit.innerText = 'طاااخ! 💥';
+        hit.style.left = (x - 40) + 'px';
+        hit.style.top = (y - 30) + 'px';
+        gameContainer.appendChild(hit);
+
+        setTimeout(() => hit.remove(), 400);
+    }
+
+    function endGame() {
+        isPlaying = false;
+        clearInterval(gameInterval);
+        clearTimeout(targetTimeout);
+        document.getElementById('final-score').innerText = score;
+        
+        const evalEl = document.getElementById('evaluation-text');
+        if (score >= 150) {
+            evalEl.innerText = "أساطير التصويب! صديقك أكلها صح 😂🔥";
+        } else if (score >= 80) {
+            evalEl.innerText = "أداء ممتاز! اختبأ منك عدة مرات 😎";
+        } else {
+            evalEl.innerText = "محاولة جيدة، يحتاج لك تمرين أكثر على السريع! 🎯";
+        }
+
+        endScreen.style.display = 'flex';
+    }
+
+    function resetGame() {
+        startGame();
+    }
+</script>
+</body>
+</html>
